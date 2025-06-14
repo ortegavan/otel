@@ -1,59 +1,73 @@
-# Otel
+## Prova de conceito de Angular com OpenTelemetry
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.0.0.
+### Instalação
 
-## Development server
-
-To start a local development server, run:
+Adicione os pacotes necessários com o seguinte comando:
 
 ```bash
-ng serve
+npm install @opentelemetry/api @opentelemetry/context-zone @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-web @opentelemetry/semantic-conventions
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+### Configuração
 
-## Code scaffolding
+Crie um arquivo `telemetry.ts` na raiz do seu projeto Angular e adicione o seguinte código:
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+```typescript
+import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+import { ZoneContextManager } from '@opentelemetry/context-zone';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { environment } from './environments/environment';
 
-```bash
-ng generate component component-name
+export function initializeTelemetry() {
+    const resource = resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: environment.appName,
+    });
+
+    const otlpExporter = new OTLPTraceExporter({
+        url: `${window.location.origin}/v1/traces`,
+    });
+
+    const provider = new WebTracerProvider({
+        resource: resource,
+        spanProcessors: [new BatchSpanProcessor(otlpExporter)],
+    });
+
+    provider.register({
+        contextManager: new ZoneContextManager(),
+    });
+}
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+### Inicialização
 
-```bash
-ng generate --help
+No arquivo `main.ts`, importe e chame a função `initializeTelemetry`:
+
+```typescript
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { App } from './app/app';
+import { initializeTelemetry } from './telemetry';
+
+initializeTelemetry();
+
+bootstrapApplication(App, appConfig).catch((err) => console.error(err));
 ```
 
-## Building
+### Uso
 
-To build the project run:
+Para criar spans em seu aplicativo Angular, você pode usar o `trace` do OpenTelemetry. Por exemplo, no componente `app.component.ts`, você pode fazer o seguinte:
 
-```bash
-ng build
+```typescript
+tracer = trace.getTracer('poc-angular', '1.0.0');
+
+test(): void {
+    const span = this.tracer.startSpan('test');
+
+    setTimeout(() => {
+        span.end();
+    }, 2000);
+}
 ```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
